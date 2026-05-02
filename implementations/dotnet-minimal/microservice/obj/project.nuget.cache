@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "oKej7tRWxFM=",
+  "success": true,
+  "projectFilePath": "/home/runner/work/rust-go-dotnet-microservice-2026/rust-go-dotnet-microservice-2026/implementations/dotnet-minimal/microservice/microservice.csproj",
+  "expectedPackageFiles": [
+    "/home/runner/.nuget/packages/npgsql/10.0.2/npgsql.10.0.2.nupkg.sha512"
+  ],
+  "logs": []
+}
