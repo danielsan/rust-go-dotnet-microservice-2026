@@ -47,6 +47,9 @@ jobs:
       - name: Setup Rust
         if: matrix.target == 'rust-axum'
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
 
       - name: Setup Go
         if: matrix.target == 'go-fiber'
@@ -245,4 +248,3 @@ jobs:
             - Commit: ${{ github.sha }}
           branch: "ci/benchmarks-${{ github.run_id }}"
           delete-branch: true
-
