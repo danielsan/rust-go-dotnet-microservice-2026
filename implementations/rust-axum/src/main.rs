@@ -1,15 +1,16 @@
 use axum::{
+    Router,
     extract::{Path, State},
     http::StatusCode,
     response::Json,
-    routing::{delete, get, post},
-    Router,
+    routing::{get, post},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{postgres::PgPoolOptions, PgPool};
+use sqlx::{PgPool, postgres::PgPoolOptions};
 use std::net::SocketAddr;
 use tokio::task;
+use tracing::{debug, info};
 use uuid::Uuid;
 use validator::Validate;
 
@@ -41,7 +42,7 @@ struct HealthResponse {
 
 #[derive(Serialize)]
 struct ErrorResponse {
-    error: String,
+    error: &'static str,
 }
 
 async fn health() -> Json<HealthResponse> {
@@ -53,9 +54,12 @@ async fn create_user(
     Json(payload): Json<CreateUserRequest>,
 ) -> Result<(StatusCode, Json<User>), (StatusCode, Json<ErrorResponse>)> {
     if let Err(e) = payload.validate() {
+        debug!(error = %e, "validation failed");
         return Err((
             StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorResponse { error: e.to_string() }),
+            Json(ErrorResponse {
+                error: "validation failed",
+            }),
         ));
     }
 
@@ -67,16 +71,19 @@ async fn create_user(
     .fetch_one(&state.pool)
     .await
     .map_err(|e| {
+        debug!(error = %e, "db insert failed");
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse { error: e.to_string() }),
+            Json(ErrorResponse {
+                error: "internal server error",
+            }),
         )
     })?;
 
     let email = user.email.clone();
     task::spawn(async move {
         let ts = Utc::now();
-        println!("NOTIFY: email sent to {} at {}", email, ts);
+        debug!(%email, %ts, "NOTIFY: email sent");
     });
 
     Ok((StatusCode::CREATED, Json(user)))
@@ -86,24 +93,28 @@ async fn get_user(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<User>, (StatusCode, Json<ErrorResponse>)> {
-    let user = sqlx::query_as::<_, User>(
-        "SELECT id, name, email, created_at FROM users WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse { error: e.to_string() }),
-        )
-    })?;
+    let user =
+        sqlx::query_as::<_, User>("SELECT id, name, email, created_at FROM users WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| {
+                debug!(error = %e, %id, "db select failed");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        error: "internal server error",
+                    }),
+                )
+            })?;
 
     match user {
         Some(u) => Ok(Json(u)),
         None => Err((
             StatusCode::NOT_FOUND,
-            Json(ErrorResponse { error: "user not found".to_string() }),
+            Json(ErrorResponse {
+                error: "user not found",
+            }),
         )),
     }
 }
@@ -117,9 +128,12 @@ async fn list_users(
     .fetch_all(&state.pool)
     .await
     .map_err(|e| {
+        debug!(error = %e, "db list failed");
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse { error: e.to_string() }),
+            Json(ErrorResponse {
+                error: "internal server error",
+            }),
         )
     })?;
 
@@ -135,16 +149,21 @@ async fn delete_user(
         .execute(&state.pool)
         .await
         .map_err(|e| {
+            debug!(error = %e, %id, "db delete failed");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse { error: e.to_string() }),
+                Json(ErrorResponse {
+                    error: "internal server error",
+                }),
             )
         })?;
 
     if result.rows_affected() == 0 {
         return Err((
             StatusCode::NOT_FOUND,
-            Json(ErrorResponse { error: "user not found".to_string() }),
+            Json(ErrorResponse {
+                error: "user not found",
+            }),
         ));
     }
 
@@ -192,7 +211,7 @@ async fn main() {
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    println!("rust-axum listening on {}", addr);
+    info!(%addr, "rust-axum listening");
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
