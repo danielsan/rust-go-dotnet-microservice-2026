@@ -1,26 +1,25 @@
 {
   "format": 1,
   "restore": {
-    "/Users/hrirks/video-gen/my-video/outputs/rust-go-dotnet-microservice-2026/implementations/dotnet-minimal/microservice/microservice.csproj": {}
+    "/home/runner/work/rust-go-dotnet-microservice-2026/rust-go-dotnet-microservice-2026/implementations/dotnet-minimal/microservice/microservice.csproj": {}
   },
   "projects": {
-    "/Users/hrirks/video-gen/my-video/outputs/rust-go-dotnet-microservice-2026/implementations/dotnet-minimal/microservice/microservice.csproj": {
+    "/home/runner/work/rust-go-dotnet-microservice-2026/rust-go-dotnet-microservice-2026/implementations/dotnet-minimal/microservice/microservice.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/hrirks/video-gen/my-video/outputs/rust-go-dotnet-microservice-2026/implementations/dotnet-minimal/microservice/microservice.csproj",
+        "projectUniqueName": "/home/runner/work/rust-go-dotnet-microservice-2026/rust-go-dotnet-microservice-2026/implementations/dotnet-minimal/microservice/microservice.csproj",
         "projectName": "microservice",
-        "projectPath": "/Users/hrirks/video-gen/my-video/outputs/rust-go-dotnet-microservice-2026/implementations/dotnet-minimal/microservice/microservice.csproj",
-        "packagesPath": "/Users/hrirks/.nuget/packages/",
-        "outputPath": "/Users/hrirks/video-gen/my-video/outputs/rust-go-dotnet-microservice-2026/implementations/dotnet-minimal/microservice/obj/",
+        "projectPath": "/home/runner/work/rust-go-dotnet-microservice-2026/rust-go-dotnet-microservice-2026/implementations/dotnet-minimal/microservice/microservice.csproj",
+        "packagesPath": "/home/runner/.nuget/packages/",
+        "outputPath": "/home/runner/work/rust-go-dotnet-microservice-2026/rust-go-dotnet-microservice-2026/implementations/dotnet-minimal/microservice/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "/Users/hrirks/.nuget/NuGet/NuGet.Config"
+          "/home/runner/.nuget/NuGet/NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net10.0"
         ],
         "sources": {
-          "/opt/homebrew/Cellar/dotnet/10.0.107/libexec/library-packs": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
@@ -39,7 +38,7 @@
           "auditLevel": "low",
           "auditMode": "all"
         },
-        "SdkAnalysisLevel": "10.0.100"
+        "SdkAnalysisLevel": "10.0.200"
       },
       "frameworks": {
         "net10.0": {
@@ -69,7 +68,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/opt/homebrew/Cellar/dotnet/10.0.107/libexec/sdk/10.0.107/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/10.0.201/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.AspNetCore": "(,10.0.32767]",
             "Microsoft.AspNetCore.Antiforgery": "(,10.0.32767]",
