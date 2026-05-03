@@ -6,25 +6,35 @@ use axum::{
     routing::{get, post},
 };
 use chrono::{DateTime, Utc};
+use deadpool_postgres::{Manager, ManagerConfig, Pool, RecyclingMethod};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, postgres::PgPoolOptions};
 use std::net::SocketAddr;
 use tokio::task;
+use tokio_postgres::NoTls;
 use tracing::{debug, info};
 use uuid::Uuid;
 use validator::Validate;
 
 #[derive(Clone)]
 struct AppState {
-    pool: PgPool,
+    pool: Pool,
 }
 
-#[derive(Debug, Serialize, sqlx::FromRow)]
+#[derive(Debug, Serialize)]
 struct User {
     id: Uuid,
     name: String,
     email: String,
     created_at: DateTime<Utc>,
+}
+
+fn row_to_user(row: &tokio_postgres::Row) -> User {
+    User {
+        id: row.get(0),
+        name: row.get(1),
+        email: row.get(2),
+        created_at: row.get(3),
+    }
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -63,15 +73,8 @@ async fn create_user(
         ));
     }
 
-    let user = sqlx::query_as::<_, User>(
-        "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id, name, email, created_at",
-    )
-    .bind(&payload.name)
-    .bind(&payload.email)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(|e| {
-        debug!(error = %e, "db insert failed");
+    let client = state.pool.get().await.map_err(|e| {
+        debug!(error = %e, "db pool error");
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorResponse {
@@ -79,6 +82,24 @@ async fn create_user(
             }),
         )
     })?;
+
+    let row = client
+        .query_one(
+            "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id, name, email, created_at",
+            &[&payload.name, &payload.email],
+        )
+        .await
+        .map_err(|e| {
+            debug!(error = %e, "db insert failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: "internal server error",
+                }),
+            )
+        })?;
+
+    let user = row_to_user(&row);
 
     let email = user.email.clone();
     task::spawn(async move {
@@ -93,23 +114,34 @@ async fn get_user(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<User>, (StatusCode, Json<ErrorResponse>)> {
-    let user =
-        sqlx::query_as::<_, User>("SELECT id, name, email, created_at FROM users WHERE id = $1")
-            .bind(id)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|e| {
-                debug!(error = %e, %id, "db select failed");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse {
-                        error: "internal server error",
-                    }),
-                )
-            })?;
+    let client = state.pool.get().await.map_err(|e| {
+        debug!(error = %e, "db pool error");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: "internal server error",
+            }),
+        )
+    })?;
 
-    match user {
-        Some(u) => Ok(Json(u)),
+    let row = client
+        .query_opt(
+            "SELECT id, name, email, created_at FROM users WHERE id = $1",
+            &[&id],
+        )
+        .await
+        .map_err(|e| {
+            debug!(error = %e, %id, "db select failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: "internal server error",
+                }),
+            )
+        })?;
+
+    match row {
+        Some(r) => Ok(Json(row_to_user(&r))),
         None => Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse {
@@ -122,13 +154,8 @@ async fn get_user(
 async fn list_users(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<User>>, (StatusCode, Json<ErrorResponse>)> {
-    let users = sqlx::query_as::<_, User>(
-        "SELECT id, name, email, created_at FROM users ORDER BY created_at DESC LIMIT 100",
-    )
-    .fetch_all(&state.pool)
-    .await
-    .map_err(|e| {
-        debug!(error = %e, "db list failed");
+    let client = state.pool.get().await.map_err(|e| {
+        debug!(error = %e, "db pool error");
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorResponse {
@@ -137,16 +164,41 @@ async fn list_users(
         )
     })?;
 
-    Ok(Json(users))
+    let rows = client
+        .query(
+            "SELECT id, name, email, created_at FROM users ORDER BY created_at DESC LIMIT 100",
+            &[],
+        )
+        .await
+        .map_err(|e| {
+            debug!(error = %e, "db list failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: "internal server error",
+                }),
+            )
+        })?;
+
+    Ok(Json(rows.iter().map(row_to_user).collect()))
 }
 
 async fn delete_user(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
-    let result = sqlx::query("DELETE FROM users WHERE id = $1")
-        .bind(id)
-        .execute(&state.pool)
+    let client = state.pool.get().await.map_err(|e| {
+        debug!(error = %e, "db pool error");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: "internal server error",
+            }),
+        )
+    })?;
+
+    let affected = client
+        .execute("DELETE FROM users WHERE id = $1", &[&id])
         .await
         .map_err(|e| {
             debug!(error = %e, %id, "db delete failed");
@@ -158,7 +210,7 @@ async fn delete_user(
             )
         })?;
 
-    if result.rows_affected() == 0 {
+    if affected == 0 {
         return Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse {
@@ -183,24 +235,35 @@ async fn main() {
         .parse()
         .expect("PORT must be a number");
 
-    let pool = PgPoolOptions::new()
-        .min_connections(5)
-        .max_connections(20)
-        .connect(&database_url)
+    let pg_config: tokio_postgres::Config = database_url.parse().expect("Invalid DATABASE_URL");
+    let mgr = Manager::from_config(
+        pg_config,
+        NoTls,
+        ManagerConfig {
+            recycling_method: RecyclingMethod::Fast,
+        },
+    );
+    let pool = Pool::builder(mgr)
+        .max_size(20)
+        .build()
+        .expect("Failed to create connection pool");
+
+    let client = pool
+        .get()
         .await
         .expect("Failed to connect to database");
-
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS users (
+    client
+        .execute(
+            "CREATE TABLE IF NOT EXISTS users (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             name VARCHAR(100) NOT NULL,
             email VARCHAR(255) NOT NULL UNIQUE,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )",
-    )
-    .execute(&pool)
-    .await
-    .expect("Failed to run migrations");
+            &[],
+        )
+        .await
+        .expect("Failed to run migrations");
 
     let state = AppState { pool };
 
