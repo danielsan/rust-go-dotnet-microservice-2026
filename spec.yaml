@@ -8,6 +8,10 @@ experiment:
       language: Rust
       framework: Axum 0.8
       toolchain: rustc 1.93.1
+    - name: rust-actix
+      language: Rust
+      framework: Actix-web 4
+      toolchain: rustc stable
     - name: go-fiber
       language: Go
       framework: Fiber v2
@@ -132,6 +136,7 @@ benchmark:
 
 ports:
   rust-axum: 3001
+  rust-actix: 3004
   go-fiber: 3002
   dotnet-minimal: 3003
   postgres: 5432

@@ -20,9 +20,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
+        matrix:
         target:
           - rust-axum
+          - rust-actix
           - go-fiber
           - dotnet-minimal
 
@@ -45,7 +46,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Rust
-        if: matrix.target == 'rust-axum'
+        if: matrix.target == 'rust-axum' || matrix.target == 'rust-actix'
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
@@ -98,6 +99,10 @@ jobs:
               cd implementations/rust-axum
               cargo build --release
               ;;
+            rust-actix)
+              cd implementations/rust-actix
+              cargo build --release
+              ;;
             go-fiber)
               cd implementations/go-fiber
               go build -o microservice .
@@ -118,6 +123,10 @@ jobs:
             rust-axum)
               export DATABASE_URL=postgres://bench:bench@127.0.0.1:5432/bench
               (cd implementations/rust-axum && ./target/release/microservice) &
+              ;;
+            rust-actix)
+              export DATABASE_URL=postgres://bench:bench@127.0.0.1:5432/bench
+              (cd implementations/rust-actix && ./target/release/rust-actix) &
               ;;
             go-fiber)
               export DATABASE_URL=postgres://bench:bench@127.0.0.1:5432/bench
@@ -221,7 +230,7 @@ jobs:
             echo
           } > "$out_file"
 
-          for target in rust-axum go-fiber dotnet-minimal; do
+          for target in rust-axum rust-actix go-fiber dotnet-minimal; do
             f="/tmp/benchmarks/benchmark-${target}/result.md"
             if [[ -f "$f" ]]; then
               echo >> "$out_file"

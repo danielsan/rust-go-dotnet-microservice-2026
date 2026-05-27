@@ -1,4 +1,4 @@
-implementations/rust-axum/target/
+implementations/rust-*/target/
 implementations/go-fiber/microservice
 implementations/dotnet-minimal/microservice/obj/
 implementations/dotnet-minimal/microservice/bin/
